@@ -60,16 +60,3 @@ done
 
 gh release create ${TAG} ${FILELIST}
 rm ${FILELIST}
-
-
-echo "[$(timestamp)] Starting Recon" | tee -a logs/progress.log
-echo "[$(timestamp)] Scanning: $domain" | tee -a logs/progress.log
-2>>logs/errors.log
-assetfinder --subs-only $domain 2>>logs/errors.log
-echo "========== FINAL RESULT ==========" | tee -a logs/progress.log
-
-echo "Total Unique Subdomains:" | tee -a logs/progress.log
-wc -l output/all-subdomains.txt | tee -a logs/progress.log
-
-echo "Total Live Hosts:" | tee -a logs/progress.log
-wc -l output/live.txt | tee -a logs/progress.log
