@@ -1,62 +1,34 @@
 #!/bin/bash
-PROJDIR=$(cd `dirname $0`/.. && pwd)
 
-VERSION="${1}"
-TAG="v${VERSION}"
-USER="tomnomnom"
-REPO="anew"
-BINARY="${REPO}"
+mkdir -p output logs
 
-if [[ -z "${VERSION}" ]]; then
-    echo "Usage: ${0} <version>"
-    exit 1
-fi
+timestamp() {
+  date "+%Y-%m-%d %H:%M:%S"
+}
 
-if [[ -z "${GITHUB_TOKEN}" ]]; then
-    echo "You forgot to set your GITHUB_TOKEN"
-    exit 2
-fi
+echo "[$(timestamp)] Starting Recon Automation" | tee -a logs/progress.log
 
-cd ${PROJDIR}
+while read domain; do
 
-# Run the tests
-go test
-if [ $? -ne 0 ]; then
-    echo "Tests failed. Aborting."
-    exit 3
-fi
+  echo "[$(timestamp)] Scanning: $domain" | tee -a logs/progress.log
 
-FILELIST=""
+  assetfinder --subs-only $domain 2>>logs/errors.log \
+  | anew output/all-subdomains.txt \
+  >> logs/progress.log
 
-for ARCH in "amd64" "386"; do
-    for OS in "darwin" "linux" "windows" "freebsd"; do
+done < input/domains.txt
 
-        if [[ "${OS}" == "darwin" && "${ARCH}" == "386" ]]; then
-            continue
-        fi
+echo "[$(timestamp)] Checking live hosts..." | tee -a logs/progress.log
 
-        BINFILE="${BINARY}"
+cat output/all-subdomains.txt \
+| httpx-toolkit -silent 2>>logs/errors.log \
+| anew output/live.txt \
+>> logs/progress.log
 
-        if [[ "${OS}" == "windows" ]]; then
-            BINFILE="${BINFILE}.exe"
-        fi
+echo "========== FINAL RESULT ==========" | tee -a logs/progress.log
 
-        rm -f ${BINFILE}
+echo "Total Unique Subdomains:" | tee -a logs/progress.log
+wc -l output/all-subdomains.txt | tee -a logs/progress.log
 
-        GOOS=${OS} GOARCH=${ARCH} go build github.com/${USER}/${REPO}
-
-        if [[ "${OS}" == "windows" ]]; then
-            ARCHIVE="${BINARY}-${OS}-${ARCH}-${VERSION}.zip"
-            zip ${ARCHIVE} ${BINFILE}
-            rm ${BINFILE}
-        else
-            ARCHIVE="${BINARY}-${OS}-${ARCH}-${VERSION}.tgz"
-            tar --create --gzip --file=${ARCHIVE} ${BINFILE}
-        fi
-
-        FILELIST="${FILELIST} ${PROJDIR}/${ARCHIVE}"
-    done
-done
-
-gh release create ${TAG} ${FILELIST}
-rm ${FILELIST}
+echo "Total Live Hosts:" | tee -a logs/progress.log
+wc -l output/live.txt | tee -a logs/progress.log
